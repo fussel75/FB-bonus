@@ -1,0 +1,273 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// AUTH
+// ─────────────────────────────────────────────
+
+model AdminUser {
+  id           Int       @id @default(autoincrement())
+  name         String
+  email        String    @unique
+  rolle        AdminRolle @default(admin)
+  passwortHash String
+  letzterLogin DateTime?
+  aktiv        Boolean   @default(true)
+  erstelltAm   DateTime  @default(now())
+
+  auszahlungenGenehmigt Auszahlung[]   @relation("GenehmigterVon")
+  bonusbuchungen        Bonusbuchung[] @relation("ErstelltVon")
+  konfigLogs            KonfigLog[]
+
+  @@map("admin_users")
+}
+
+enum AdminRolle {
+  superadmin
+  admin
+}
+
+// ─────────────────────────────────────────────
+// ROLLEN (konfigurierbar, beliebig erweiterbar)
+// ─────────────────────────────────────────────
+
+model Rolle {
+  id          Int      @id @default(autoincrement())
+  bezeichnung String   @unique
+  faktor      Decimal  @db.Decimal(4, 2)
+  erstelltAm  DateTime @default(now())
+
+  mitarbeiter Mitarbeiter[]
+
+  @@map("rollen")
+}
+
+// ─────────────────────────────────────────────
+// API-CACHE: MITARBEITER (Read-Only, täglich sync)
+// ─────────────────────────────────────────────
+
+model Mitarbeiter {
+  id                       Int                   @id @default(autoincrement())
+  externeId                String?               @unique
+  personalNummer           String?               @unique
+  vorname                  String
+  nachname                 String
+  email                    String?               @unique
+  passwortHash             String?
+  rolleId                  Int
+  rolle                    Rolle                 @relation(fields: [rolleId], references: [id])
+  eintrittsdatum           DateTime?             @db.Date
+  austrittsdatum           DateTime?             @db.Date
+  kranktageAktuellesJahr   Int                   @default(0)
+  auszahlungspraeferenz    Auszahlungspraeferenz @default(geld)
+  aktiv                    Boolean               @default(true)
+  zuletztSynchronisiert    DateTime              @default(now())
+  stundenlohnBrutto        Decimal?              @db.Decimal(6, 2)
+  tagesstundenDurchschnitt Decimal?              @db.Decimal(4, 2) @default(8.00)
+
+  projektStunden ProjektMitarbeiter[]
+  bonusbuchungen Bonusbuchung[]
+  auszahlungen   Auszahlung[]
+  wurstAbzug     WurstAbzug[]
+
+  @@map("mitarbeiter")
+}
+
+// ─────────────────────────────────────────────
+// WURSTSTUNDEN-ABZUG (offene, nicht aufgelöste Positionen)
+// Wird bei jedem Sync überschrieben (Snapshot).
+// ─────────────────────────────────────────────
+
+model WurstAbzug {
+  id                    Int      @id @default(autoincrement())
+  mitarbeiterId         Int
+  kalenderjahr          Int
+  offeneStunden         Decimal  @db.Decimal(10, 2)
+  offeneEintraege       Int      @default(0)
+  zuletztSynchronisiert DateTime @default(now())
+
+  mitarbeiter Mitarbeiter @relation(fields: [mitarbeiterId], references: [id])
+
+  @@unique([mitarbeiterId, kalenderjahr])
+  @@map("wurst_abzug")
+}
+
+enum Auszahlungspraeferenz {
+  geld
+  freizeit
+}
+
+// ─────────────────────────────────────────────
+// API-CACHE: PROJEKTE (Read-Only, täglich sync)
+// ─────────────────────────────────────────────
+
+model Projekt {
+  id                     Int           @id @default(autoincrement())
+  projektnummer          String        @unique
+  projektname            String
+  sollStunden            Decimal       @db.Decimal(10, 2)
+  istStundenGesamt       Decimal       @db.Decimal(10, 2)
+  status                 ProjektStatus @default(aktiv)
+  zuletztSynchronisiert  DateTime      @default(now())
+  bonusAusgeschlossen    Boolean       @default(false)
+  abrechnungsJahr        Int?
+  archiviert             Boolean       @default(false)
+
+  mitarbeiterStunden ProjektMitarbeiter[]
+  bonusbuchungen     Bonusbuchung[]
+
+  @@map("projekte")
+}
+
+enum ProjektStatus {
+  aktiv
+  abgeschlossen
+  pausiert
+}
+
+// Verknüpfungstabelle: Mitarbeiter ↔ Projekt ↔ Jahr (Ist-Stunden je MA je Projekt je Kalenderjahr)
+model ProjektMitarbeiter {
+  projektId     Int
+  mitarbeiterId Int
+  jahr          Int
+  istStunden    Decimal @db.Decimal(10, 2)
+  extraStunden  Decimal @default(0) @db.Decimal(10, 2)
+
+  projekt     Projekt     @relation(fields: [projektId], references: [id])
+  mitarbeiter Mitarbeiter @relation(fields: [mitarbeiterId], references: [id])
+
+  @@id([projektId, mitarbeiterId, jahr])
+  @@map("projekt_mitarbeiter")
+}
+
+// ─────────────────────────────────────────────
+// BONUSBUCHUNGEN — UNVERÄNDERLICHER AUDIT-TRAIL
+// Nur INSERT erlaubt. Kein UPDATE, kein DELETE.
+// ─────────────────────────────────────────────
+
+model Bonusbuchung {
+  id            Int      @id @default(autoincrement())
+  mitarbeiterId Int
+  projektId     Int? // nullable bei Option A ohne Projektbezug
+  typ           BonusTyp
+  stunden       Decimal  @db.Decimal(10, 2)
+  betragEur     Decimal  @db.Decimal(10, 2)
+  buchungsdatum DateTime @db.Date
+  beschreibung  String?
+  erstelltAm    DateTime @default(now())
+  erstelltVonId Int? // null = System (Cron-Job)
+
+  mitarbeiter Mitarbeiter @relation(fields: [mitarbeiterId], references: [id])
+  projekt     Projekt?    @relation(fields: [projektId], references: [id])
+  erstelltVon AdminUser?  @relation("ErstelltVon", fields: [erstelltVonId], references: [id])
+
+  @@map("bonusbuchungen")
+}
+
+enum BonusTyp {
+  option_a
+  option_b
+}
+
+// ─────────────────────────────────────────────
+// AUSZAHLUNGEN (Jahresabschluss-Workflow)
+// ─────────────────────────────────────────────
+
+model Auszahlung {
+  id                  Int              @id @default(autoincrement())
+  mitarbeiterId       Int
+  kalenderjahr        Int
+  betragOptionA       Decimal          @db.Decimal(10, 2) @default(0)
+  betragOptionB       Decimal          @db.Decimal(10, 2) @default(0)
+  betragGesamt        Decimal          @db.Decimal(10, 2) @default(0)
+  betragBrutto        Decimal          @db.Decimal(10, 2) @default(0)
+  krankenKuerzungEur  Decimal          @db.Decimal(10, 2) @default(0)
+  krankenFaktorProzent Decimal         @db.Decimal(5, 2)  @default(100)
+  kranktage           Int              @default(0)
+  status              AuszahlungStatus @default(ausstehend)
+  genehmigtvonId      Int?
+  genehmigtAm         DateTime?
+  ausgezahltAm        DateTime?
+  zahlungsnachweis    String?
+  erstelltAm          DateTime         @default(now())
+  h1BetragOptionA     Decimal          @db.Decimal(10, 2) @default(0)
+  h1AusgezahltAm      DateTime?
+
+  mitarbeiter  Mitarbeiter @relation(fields: [mitarbeiterId], references: [id])
+  genehmigtvon AdminUser?  @relation("GenehmigterVon", fields: [genehmigtvonId], references: [id])
+
+  @@unique([mitarbeiterId, kalenderjahr])
+  @@map("auszahlungen")
+}
+
+enum AuszahlungStatus {
+  ausstehend
+  genehmigt
+  ausgezahlt
+  storniert
+}
+
+// ─────────────────────────────────────────────
+// KONFIGURATION (alle Parameter variabel)
+// ─────────────────────────────────────────────
+
+model Konfiguration {
+  key          String    @id
+  value        String
+  typ          KonfigTyp
+  beschreibung String?
+  geaendertAm  DateTime  @updatedAt
+  geaendertVon String? // Name des Admin-Users als String
+
+  logs KonfigLog[]
+
+  @@map("konfiguration")
+}
+
+enum KonfigTyp {
+  string
+  number
+  date
+  boolean
+}
+
+model KonfigLog {
+  id           Int      @id @default(autoincrement())
+  konfigKey    String
+  alterWert    String
+  neuerWert    String
+  geaendertAm  DateTime @default(now())
+  geaendertVon Int?
+
+  konfiguration Konfiguration @relation(fields: [konfigKey], references: [key])
+  adminUser     AdminUser?    @relation(fields: [geaendertVon], references: [id])
+
+  @@map("konfiguration_log")
+}
+
+// ─────────────────────────────────────────────
+// SYNC-LOG (API-Synchronisation)
+// ─────────────────────────────────────────────
+
+model SyncLog {
+  id         Int        @id @default(autoincrement())
+  startedAt  DateTime   @default(now())
+  finishedAt DateTime?
+  status     SyncStatus
+  fehler     String?
+  manuell    Boolean    @default(false)
+
+  @@map("sync_log")
+}
+
+enum SyncStatus {
+  laufend
+  erfolgreich
+  fehlgeschlagen
+}

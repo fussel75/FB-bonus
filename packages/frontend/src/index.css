@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    /* Verhindert Layout-Shift durch Scrollbar */
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Zahlen immer proportional */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  /* Shimmer-Gradient für Skeleton */
+  .shimmer-bg {
+    background: linear-gradient(
+      90deg,
+      theme('colors.gray.100') 25%,
+      theme('colors.gray.200') 50%,
+      theme('colors.gray.100') 75%
+    );
+    background-size: 200% 100%;
+  }
+
+  /* Sanfter Scroll */
+  .scroll-smooth {
+    scroll-behavior: smooth;
+  }
+
+  /* Touch-Target Mindestgröße (Mobile) */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

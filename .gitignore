@@ -1,0 +1,20 @@
+node_modules/
+dist/
+build/
+.env
+*.env.local
+*.log
+.DS_Store
+
+# Prisma
+.prisma/
+packages/backend/prisma/migrations/*.sql
+
+# Build-Outputs
+packages/frontend/dist/
+packages/backend/dist/
+packages/backend/dist-test/
+
+# User-Uploads (Logos etc.) — bleiben auf dem Server
+packages/backend/uploads/*
+!packages/backend/uploads/.gitkeep

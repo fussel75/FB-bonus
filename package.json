@@ -1,0 +1,19 @@
+{
+  "name": "bonustrack",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/backend",
+    "packages/frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=packages/backend & npm run dev --workspace=packages/frontend",
+    "dev:backend": "npm run dev --workspace=packages/backend",
+    "dev:frontend": "npm run dev --workspace=packages/frontend",
+    "build": "npm run build --workspace=packages/backend && npm run build --workspace=packages/frontend",
+    "start": "npm run start --workspace=packages/backend",
+    "db:migrate": "npm run db:migrate --workspace=packages/backend",
+    "db:seed": "npm run db:seed --workspace=packages/backend",
+    "db:studio": "npm run db:studio --workspace=packages/backend"
+  }
+}

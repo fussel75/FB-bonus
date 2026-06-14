@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist-test",
+    "noEmit": false
+  },
+  "include": [
+    "src/utils/krankenfaktor.ts",
+    "src/utils/__tests__/krankenfaktor.test.ts"
+  ]
+}
