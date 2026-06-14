@@ -4,9 +4,13 @@ import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
 import bcrypt from 'bcryptjs';
+import pinoHttp from 'pino-http';
 import { env } from './config/env';
 import { prisma } from './db/client';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { logger } from './utils/logger';
+import { initSentry, getSentry, Sentry } from './utils/sentry';
+import { loginRateLimiter } from './middleware/rateLimit';
 
 // Routen
 import uploadRoutes          from './routes/upload';
@@ -22,8 +26,31 @@ import syncRoutes            from './routes/sync';
 import prognoseRoutes        from './routes/prognose';
 import adminUserRoutes       from './routes/admin/users';
 import jahresabschlussRoutes from './routes/admin/jahresabschluss';
+import adminMailsRoutes      from './routes/admin/mails';
+import twoFactorRoutes       from './routes/admin/two-factor';
+import trendRoutes           from './routes/admin/trend';
 
 const app = express();
+
+// ─── Sentry (falls SENTRY_DSN gesetzt) ───────────────────────────────────────
+// MUSS vor anderen Middlewares stehen, damit RequestHandler/TracingHandler greifen
+initSentry(app);
+if (getSentry()) {
+  app.use(Sentry.Handlers.requestHandler());
+  app.use(Sentry.Handlers.tracingHandler());
+}
+
+// ─── Strukturiertes HTTP-Logging ──────────────────────────────────────────────
+app.use(pinoHttp({
+  logger,
+  customLogLevel: (_req, res, err) => {
+    if (res.statusCode >= 500 || err) return 'error';
+    if (res.statusCode >= 400) return 'warn';
+    return 'info';
+  },
+  // /health-Pings aus dem Log raushalten (verstopft sonst alles)
+  autoLogging: { ignore: (req) => req.url === '/health' },
+}));
 
 // ─── Trust Proxy (für Reverse-Proxy wie Traefik/Nginx vor dem Container) ────
 // Liest den ersten X-Forwarded-* Header — korrekt für genau einen Hop davor.
@@ -67,9 +94,9 @@ const api = express.Router();
 // Upload
 api.use('/upload',            uploadRoutes);
 
-// Auth
-api.use('/auth',              authRoutes);
-api.use('/mitarbeiter-auth',  mitarbeiterAuthRoutes);
+// Auth — mit Rate-Limit (gegen Brute-Force)
+api.use('/auth',              loginRateLimiter, authRoutes);
+api.use('/mitarbeiter-auth',  loginRateLimiter, mitarbeiterAuthRoutes);
 
 // Stammdaten (Admin)
 api.use('/mitarbeiter',       mitarbeiterRoutes);
@@ -90,6 +117,9 @@ api.use('/auszahlungen',      auszahlungenRoutes);
 // Admin-spezifisch
 api.use('/admin/users',            adminUserRoutes);
 api.use('/admin/jahresabschluss',  jahresabschlussRoutes);
+api.use('/admin/mails',            adminMailsRoutes);
+api.use('/admin/two-factor',       twoFactorRoutes);
+api.use('/admin/trend',            trendRoutes);
 
 app.use('/api', api);
 
@@ -108,6 +138,16 @@ app.get('*', (req, res, next) => {
 
 // ─── 404 + Fehlerbehandlung (nur noch für /api-Routen) ───────────────────────
 app.use(notFoundHandler);
+// Sentry-Errorhandler MUSS VOR dem eigenen errorHandler kommen
+if (getSentry()) {
+  app.use(Sentry.Handlers.errorHandler({
+    shouldHandleError: (err) => {
+      const status = (err as { status?: number }).status ?? 500;
+      // Nur 5xx an Sentry — 4xx sind Client-Fehler (ungültige Eingabe etc.)
+      return status >= 500;
+    },
+  }));
+}
 app.use(errorHandler);
 
 // ─── Server starten ───────────────────────────────────────────────────────────

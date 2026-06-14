@@ -11,6 +11,7 @@ import { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { AdminTour } from '@/components/onboarding/AdminTour';
 
 // Seitentitel aus Route-Pfad ableiten
 function resolvePageTitle(pathname: string): { title: string; subtitle?: string } {
@@ -52,7 +53,7 @@ export function AppShell() {
   }, []);
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen bg-gray-50 dark:bg-gray-950 overflow-hidden">
 
       {/* ── Desktop-Sidebar (fest) ───────────────────────────────────────── */}
       <div className="hidden lg:flex flex-shrink-0">
@@ -89,6 +90,9 @@ export function AppShell() {
           </div>
         </main>
       </div>
+
+      {/* Onboarding-Tour (zeigt sich nur beim ersten Admin-Login) */}
+      <AdminTour />
     </div>
   );
 }

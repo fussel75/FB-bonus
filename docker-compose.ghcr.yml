@@ -1,17 +1,17 @@
-# docker-compose.yml — BonusTrack-Stack hinter Traefik (host-network)
+# docker-compose.ghcr.yml — Production-Variante mit Image aus GHCR
 #
-# Setup auf Hostinger Docker Manager:
-#   1) Projekt anlegen, Projektname: fb-bonus
-#   2) Im .yaml-Editor diese Datei einfügen
-#   3) Im Tab "Umgebung" die Variablen aus .env.docker.example setzen
-#   4) "Bereitstellen" klicken
+# Voraussetzung: GitHub Actions hat das Image gebaut und nach
+# ghcr.io/fussel75/fb-bonus:latest gepusht.
 #
-# Voraussetzungen:
-#   - Traefik läuft (auch im host-network ok), Cert-Resolver "letsencrypt"
-#   - DNS A-Record fb-bonus.fristd-bau.com → VPS-IP
-#   - HTTP→HTTPS-Redirect ist üblicherweise global in Traefik konfiguriert
-#     (entrypoints.web.http.redirections.entrypoint.to=websecure); deshalb
-#     hier KEIN extra Redirect-Router.
+# Auf dem VPS:
+#   docker compose -f docker-compose.ghcr.yml pull
+#   docker compose -f docker-compose.ghcr.yml up -d
+#
+# Kein "build:"-Block — kein Source-Code mehr auf dem VPS nötig!
+#
+# Tipp: Datei zu docker-compose.yml machen für die einfachen Befehle:
+#   mv docker-compose.yml docker-compose.local.yml
+#   mv docker-compose.ghcr.yml docker-compose.yml
 
 services:
   postgres:
@@ -50,7 +50,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        apk add --no-cache dcron > /dev/null
+        apk add --no-cache dcron tini > /dev/null
         cat > /etc/periodic/daily/pgbackup <<'EOF'
         #!/bin/sh
         set -e
@@ -63,13 +63,14 @@ services:
         echo "[backup] retention done"
         EOF
         chmod +x /etc/periodic/daily/pgbackup
+        # Beim Start einmal ausführen damit erstes Backup vorhanden ist
         /etc/periodic/daily/pgbackup
+        # Dann täglich um 03:15 (alpine periodic/daily läuft via crond)
         exec crond -f -l 8
 
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/fussel75/fb-bonus:latest
+    pull_policy: always
     restart: unless-stopped
     depends_on:
       postgres:
@@ -107,6 +108,5 @@ volumes:
   backups:
 
 networks:
-  # Fester Name (kein Compose-Prefix), damit traefik.docker.network passt
   fb-bonus:
     name: fb-bonus

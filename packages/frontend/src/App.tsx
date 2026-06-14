@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { DarkModeProvider } from '@/context/DarkModeContext';
 import { AppShell } from '@/components/layout/AppShell';
 
 // Seiten
@@ -50,6 +51,7 @@ function Protected({ children, requiredTyp, redirectTo }: ProtectedProps) {
 export default function App() {
   return (
     <BrowserRouter>
+      <DarkModeProvider>
       <AuthProvider>
         <Routes>
 
@@ -115,6 +117,7 @@ export default function App() {
 
         </Routes>
       </AuthProvider>
+      </DarkModeProvider>
     </BrowserRouter>
   );
 }

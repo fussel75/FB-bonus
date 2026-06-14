@@ -84,17 +84,24 @@ router.post('/halbjahr', requireAuth, requireSuperAdmin, async (req: Authenticat
 });
 
 // ─── Schritt 4: Export ───────────────────────────────────────────────────────
-// GET /api/admin/jahresabschluss/export?jahr=2024&format=pdf|csv
+// GET /api/admin/jahresabschluss/export?jahr=2024&format=pdf|csv|xlsx
 router.get('/export', requireAuth, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { exportService } = await import('../../services/export.service');
-    const jahr   = req.query.jahr   ? Number(req.query.jahr)     : new Date().getFullYear();
-    const format = req.query.format === 'csv' ? 'csv' : 'pdf';
+    const jahr = req.query.jahr ? Number(req.query.jahr) : new Date().getFullYear();
+    const fmtRaw = String(req.query.format ?? 'pdf');
+    const format: 'pdf' | 'csv' | 'xlsx' =
+      fmtRaw === 'csv' ? 'csv' : fmtRaw === 'xlsx' ? 'xlsx' : 'pdf';
 
     const buffer = await exportService.jahresabschlussExport(jahr, format);
 
+    const contentType =
+      format === 'pdf'  ? 'application/pdf'
+      : format === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      : 'text/csv';
+
     res.setHeader('Content-Disposition', `attachment; filename="bonustrack_${jahr}.${format}"`);
-    res.setHeader('Content-Type', format === 'pdf' ? 'application/pdf' : 'text/csv');
+    res.setHeader('Content-Type', contentType);
     res.send(buffer);
   } catch (err) {
     next(err);

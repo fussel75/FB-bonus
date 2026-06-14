@@ -14,18 +14,25 @@ datasource db {
 // ─────────────────────────────────────────────
 
 model AdminUser {
-  id           Int       @id @default(autoincrement())
-  name         String
-  email        String    @unique
-  rolle        AdminRolle @default(admin)
-  passwortHash String
-  letzterLogin DateTime?
-  aktiv        Boolean   @default(true)
-  erstelltAm   DateTime  @default(now())
+  id              Int       @id @default(autoincrement())
+  name            String
+  email           String    @unique
+  rolle           AdminRolle @default(admin)
+  passwortHash    String
+  letzterLogin    DateTime?
+  aktiv           Boolean   @default(true)
+  erstelltAm      DateTime  @default(now())
+  // ── 2FA (TOTP) ──
+  twoFactorSecret    String?   // Base32-encoded TOTP-Secret (otplib)
+  twoFactorEnabled   Boolean   @default(false)
+  twoFactorBackupCodes String? // JSON-Array gehashter Backup-Codes
 
-  auszahlungenGenehmigt Auszahlung[]   @relation("GenehmigterVon")
-  bonusbuchungen        Bonusbuchung[] @relation("ErstelltVon")
+  auszahlungenGenehmigt Auszahlung[]    @relation("GenehmigterVon")
+  bonusbuchungen        Bonusbuchung[]  @relation("ErstelltVon")
   konfigLogs            KonfigLog[]
+  auszahlungLogs        AuszahlungLog[]
+  mailDraftsCreated     MailDraft[]     @relation("MailErstelltVon")
+  mailDraftsApproved    MailDraft[]     @relation("MailGenehmigtVon")
 
   @@map("admin_users")
 }
@@ -203,9 +210,80 @@ model Auszahlung {
 
   mitarbeiter  Mitarbeiter @relation(fields: [mitarbeiterId], references: [id])
   genehmigtvon AdminUser?  @relation("GenehmigterVon", fields: [genehmigtvonId], references: [id])
+  logs         AuszahlungLog[]
+  mailDrafts   MailDraft[]
 
   @@unique([mitarbeiterId, kalenderjahr])
   @@map("auszahlungen")
+}
+
+// ─────────────────────────────────────────────
+// AUDIT-LOG für Auszahlungen
+// Wer hat wann was geändert/freigegeben/storniert?
+// ─────────────────────────────────────────────
+
+model AuszahlungLog {
+  id            Int       @id @default(autoincrement())
+  auszahlungId  Int
+  aktion        String    // 'erstellt' | 'genehmigt' | 'ausgezahlt' | 'storniert' | 'aktualisiert' | 'h1_vorauszahlung'
+  detail        String?   // Freitext / JSON-Diff bei Updates
+  geaendertAm   DateTime  @default(now())
+  geaendertVon  Int?      // null = System
+  ipAdresse     String?
+
+  auszahlung    Auszahlung @relation(fields: [auszahlungId], references: [id], onDelete: Cascade)
+  adminUser     AdminUser? @relation(fields: [geaendertVon], references: [id])
+
+  @@index([auszahlungId])
+  @@map("auszahlung_logs")
+}
+
+// ─────────────────────────────────────────────
+// MAIL-DRAFTS — Approval-Workflow
+// Mails werden NIE automatisch versendet. Nur über
+// expliziten Admin-Klick "Versenden".
+// ─────────────────────────────────────────────
+
+model MailDraft {
+  id            Int           @id @default(autoincrement())
+  // Bezugs-Objekt
+  auszahlungId  Int?
+  anlass        String        // 'auszahlung' | 'halbjahr' | 'sonderfall'
+  // Empfänger
+  empfaengerEmail String
+  empfaengerName  String
+  // Mail-Inhalt
+  betreff       String
+  textBody      String        @db.Text
+  htmlBody      String?       @db.Text
+  // Workflow-Status
+  status        MailStatus    @default(draft)
+  erstelltAm    DateTime      @default(now())
+  erstelltVonId Int?
+  genehmigtAm   DateTime?
+  genehmigtVonId Int?
+  versendetAm   DateTime?
+  abgebrochenAm DateTime?
+  abgebrochenGrund String?
+  // Resend-Antwort
+  resendId      String?
+  fehler        String?
+
+  auszahlung     Auszahlung? @relation(fields: [auszahlungId], references: [id])
+  erstelltVon    AdminUser?  @relation("MailErstelltVon", fields: [erstelltVonId], references: [id])
+  genehmigtVon   AdminUser?  @relation("MailGenehmigtVon", fields: [genehmigtVonId], references: [id])
+
+  @@index([status])
+  @@index([auszahlungId])
+  @@map("mail_drafts")
+}
+
+enum MailStatus {
+  draft
+  bereit
+  versendet
+  abgebrochen
+  fehlgeschlagen
 }
 
 enum AuszahlungStatus {

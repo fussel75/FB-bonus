@@ -15,6 +15,7 @@
 
 import PDFDocument from 'pdfkit';
 import Papa        from 'papaparse';
+import ExcelJS     from 'exceljs';
 import { prisma }  from '../db/client';
 import { konfigService } from './konfiguration.service';
 
@@ -467,7 +468,7 @@ export const exportService = {
 
   async jahresabschlussExport(
     jahr:    number,
-    format:  'pdf' | 'csv',
+    format:  'pdf' | 'csv' | 'xlsx',
     adminId?: number,
   ): Promise<Buffer> {
 
@@ -523,6 +524,81 @@ export const exportService = {
       // BOM (Byte Order Mark) voranstellen → Umlaute in Excel korrekt
       const BOM = '\uFEFF';
       return Buffer.from(BOM + csv, 'utf-8');
+    }
+
+    // ── XLSX (Excel) ─────────────────────────────────────────────────────────
+    if (format === 'xlsx') {
+      const wb = new ExcelJS.Workbook();
+      wb.creator = adminName;
+      wb.created = new Date();
+      wb.title = `Jahresabschluss ${jahr}`;
+
+      const ws = wb.addWorksheet(`Bonus ${jahr}`);
+      ws.columns = [
+        { header: 'Nr',                  key: 'nr',          width: 5 },
+        { header: 'Personalnummer',      key: 'pn',          width: 15 },
+        { header: 'Vorname',             key: 'vn',          width: 15 },
+        { header: 'Nachname',            key: 'nn',          width: 18 },
+        { header: 'Rolle',               key: 'rolle',       width: 18 },
+        { header: 'Kranktage',           key: 'kranktage',   width: 11 },
+        { header: 'Kranken-Faktor (%)',  key: 'kfaktor',     width: 18 },
+        { header: 'Brutto (€)',          key: 'brutto',      width: 12 },
+        { header: 'Kürzung (€)',         key: 'kuerzung',    width: 13 },
+        { header: 'Option A (€)',        key: 'optA',        width: 12 },
+        { header: 'Option B (€)',        key: 'optB',        width: 12 },
+        { header: 'Gesamt (€)',          key: 'gesamt',      width: 13 },
+        { header: 'Status',              key: 'status',      width: 12 },
+        { header: 'Präferenz',           key: 'praef',       width: 11 },
+      ];
+      ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F2937' } };
+
+      auszahlungen.forEach((a, idx) => {
+        ws.addRow({
+          nr:        idx + 1,
+          pn:        a.mitarbeiter.personalNummer ?? '',
+          vn:        a.mitarbeiter.vorname,
+          nn:        a.mitarbeiter.nachname,
+          rolle:     a.mitarbeiter.rolle.bezeichnung,
+          kranktage: a.kranktage,
+          kfaktor:   Number(a.krankenFaktorProzent),
+          brutto:    Number(a.betragBrutto),
+          kuerzung:  Number(a.krankenKuerzungEur),
+          optA:      Number(a.betragOptionA),
+          optB:      Number(a.betragOptionB),
+          gesamt:    Number(a.betragGesamt),
+          status:    a.status,
+          praef:     a.mitarbeiter.auszahlungspraeferenz,
+        });
+      });
+
+      // Summenzeile
+      const summenRow = ws.addRow({
+        vn: 'SUMME',
+        brutto:   auszahlungen.reduce((s, a) => s + Number(a.betragBrutto),   0),
+        kuerzung: auszahlungen.reduce((s, a) => s + Number(a.krankenKuerzungEur), 0),
+        optA:     auszahlungen.reduce((s, a) => s + Number(a.betragOptionA),  0),
+        optB:     auszahlungen.reduce((s, a) => s + Number(a.betragOptionB),  0),
+        gesamt:   auszahlungen.reduce((s, a) => s + Number(a.betragGesamt),   0),
+      });
+      summenRow.font = { bold: true };
+      summenRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } };
+
+      ['brutto', 'kuerzung', 'optA', 'optB', 'gesamt'].forEach((key) => {
+        const col = ws.getColumn(key);
+        col.numFmt = '#,##0.00 €';
+      });
+
+      // Freiwilligkeitsvorbehalt — gesetzlich relevanter Hinweis
+      ws.addRow([]);
+      const hinweisRow = ws.addRow([
+        'Hinweis: Diese Bonuszahlungen erfolgen freiwillig. Ein Rechtsanspruch auf zukünftige Zahlungen, auch bei wiederholter Gewährung, besteht nicht.',
+      ]);
+      hinweisRow.font = { italic: true, color: { argb: 'FF6B7280' } };
+      ws.mergeCells(`A${hinweisRow.number}:N${hinweisRow.number}`);
+
+      const buffer = await wb.xlsx.writeBuffer();
+      return Buffer.from(buffer);
     }
 
     // ── PDF ───────────────────────────────────────────────────────────────────
