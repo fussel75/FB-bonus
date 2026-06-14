@@ -52,8 +52,9 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends openssl postgresql-client dumb-init ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# ts-node + typescript global für entrypoint (seed, migration, stammdaten-update)
-RUN npm install -g ts-node typescript
+# tsx global für entrypoint (seed, migration, stammdaten-update)
+# tsx statt ts-node: läuft auf Node 20 ohne ESM/CJS-Klimmzüge
+RUN npm install -g tsx
 
 # Manifeste + komplette node_modules aus builder (enthält Prisma Engines)
 COPY package.json package-lock.json ./

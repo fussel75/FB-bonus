@@ -32,15 +32,15 @@ echo "→ prisma db push (Schema synchronisieren)"
 npx prisma db push --skip-generate --accept-data-loss=false
 
 echo "→ Migration: kranktage_schwellenwert → kranktage_max_grenze"
-npx ts-node prisma/migrate-kranktage-max-grenze.ts || echo "  (übersprungen oder bereits angewendet)"
+tsx prisma/migrate-kranktage-max-grenze.ts || echo "  (übersprungen oder bereits angewendet)"
 
 echo "→ Seed (idempotent — überschreibt keine Konfig-Werte)"
-npx ts-node prisma/seed.ts || echo "  (Seed-Fehler — Start trotzdem fortsetzen)"
+tsx prisma/seed.ts || echo "  (Seed-Fehler — Start trotzdem fortsetzen)"
 
 # Stammdaten-Update nur ausführen wenn explizit gewünscht
 if [ "${RUN_STAMMDATEN_UPDATE:-false}" = "true" ]; then
   echo "→ Stammdaten 2026 aktualisieren"
-  npx ts-node /app/scripts/update-stammdaten-2026.ts || echo "  (Update fehlgeschlagen — Start trotzdem fortsetzen)"
+  tsx /app/scripts/update-stammdaten-2026.ts || echo "  (Update fehlgeschlagen — Start trotzdem fortsetzen)"
 fi
 
 cd /app
