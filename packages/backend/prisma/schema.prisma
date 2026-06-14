@@ -1,5 +1,10 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // Engine-Binaries für die Container-Plattformen explizit generieren.
+  // "native" für lokale Entwicklung; debian-openssl-3.0.x für unser
+  // bookworm-slim Runtime-Image; linux-musl als Absicherung falls jemand
+  // doch wieder Alpine baut.
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
