@@ -149,38 +149,42 @@ function StundenlohnCell({
   onSave,
   saving,
 }: {
-  wert:   number | null;
+  // Prisma serialisiert Decimal als String → beide Typen müssen behandelt werden
+  wert:   number | string | null;
   maId:   number;
   onSave: (id: number, wert: number | null) => Promise<void>;
   saving?: boolean;
 }) {
+  const numWert = wert === null || wert === undefined ? null : Number(wert);
+  const wertGueltig = numWert !== null && !isNaN(numWert);
+
   const [editing, setEditing] = useState(false);
-  const [draft,   setDraft]   = useState(wert !== null ? String(wert) : '');
+  const [draft,   setDraft]   = useState(wertGueltig ? String(numWert) : '');
 
   const commit = async () => {
     const trimmed = draft.trim();
     const neu = trimmed === '' ? null : Number(trimmed);
     if (neu !== null && (isNaN(neu) || neu < 0)) return;
-    if (neu !== wert) await onSave(maId, neu);
+    if (neu !== numWert) await onSave(maId, neu);
     setEditing(false);
   };
 
   if (saving) {
-    return <span className="text-gray-300 animate-pulse">{wert !== null ? `${wert.toFixed(2)} €` : '—'}</span>;
+    return <span className="text-gray-300 animate-pulse">{wertGueltig ? `${numWert!.toFixed(2)} €` : '—'}</span>;
   }
 
   if (!editing) {
     return (
       <button
-        onClick={() => { setDraft(wert !== null ? String(wert) : ''); setEditing(true); }}
+        onClick={() => { setDraft(wertGueltig ? String(numWert) : ''); setEditing(true); }}
         className={`text-left underline-offset-2 hover:underline transition-colors ${
-          wert === null
+          !wertGueltig
             ? 'text-malus-600 italic hover:text-malus-700'
             : 'text-gray-700 hover:text-info-600'
         }`}
-        title={wert === null ? 'Pflicht für § 4a EFZG-Schutz — klicken zum Setzen' : 'Klicken zum Bearbeiten'}
+        title={!wertGueltig ? 'Pflicht für § 4a EFZG-Schutz — klicken zum Setzen' : 'Klicken zum Bearbeiten'}
       >
-        {wert !== null ? `${wert.toFixed(2)} €` : 'fehlt!'}
+        {wertGueltig ? `${numWert!.toFixed(2)} €` : 'fehlt!'}
       </button>
     );
   }

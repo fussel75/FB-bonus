@@ -125,8 +125,9 @@ export interface Mitarbeiter {
   auszahlungspraeferenz:    'geld' | 'freizeit';
   aktiv:                    boolean;
   zuletztSynchronisiert:    string;
-  stundenlohnBrutto:        number | null;
-  tagesstundenDurchschnitt: number | null;
+  // Prisma serialisiert Decimal als String über die API
+  stundenlohnBrutto:        number | string | null;
+  tagesstundenDurchschnitt: number | string | null;
 }
 
 export interface MitarbeiterMe {
