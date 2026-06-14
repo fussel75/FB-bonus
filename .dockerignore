@@ -1,0 +1,24 @@
+# Docker-Build-Context schlank halten
+.git
+.gitignore
+.dockerignore
+Dockerfile
+docker-compose.yml
+*.md
+threat_model.md
+
+# Build-Outputs / Caches (werden im Container neu gebaut)
+node_modules
+packages/*/node_modules
+packages/*/dist
+packages/*/dist-test
+packages/backend/uploads
+
+# Lokale Konfiguration / Secrets
+.env
+.env.*
+!.env.docker.example
+!.env.example
+
+# Replit-spezifisches
+.replit

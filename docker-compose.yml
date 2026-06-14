@@ -1,0 +1,55 @@
+# docker-compose.yml — BonusTrack-Stack
+#
+# Setup auf Hostinger Docker Manager:
+#   1) Projekt anlegen, Projektname: fb-bonus
+#   2) Im .yaml-Editor diese Datei einfügen
+#   3) Im Tab "Umgebung" die Variablen aus .env.docker.example setzen
+#   4) "Bereitstellen" klicken
+#
+# Lokal:
+#   cp .env.docker.example .env
+#   docker compose up -d --build
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     ${POSTGRES_USER:-bonustrack}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB:       ${POSTGRES_DB:-bonustrack}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test:     ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bonustrack} -d ${POSTGRES_DB:-bonustrack}"]
+      interval: 5s
+      timeout:  5s
+      retries:  10
+    # Kein ports-Mapping — Postgres ist nur im internen Netz erreichbar
+
+  app:
+    build:
+      context:    .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL:    postgresql://${POSTGRES_USER:-bonustrack}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bonustrack}
+      JWT_SECRET:      ${JWT_SECRET}
+      JWT_EXPIRES_IN:  ${JWT_EXPIRES_IN:-8h}
+      PARTNER_API_KEY: ${PARTNER_API_KEY}
+      RESEND_API_KEY:  ${RESEND_API_KEY:-}
+      NODE_ENV:        production
+      PORT:            5000
+      # Auf "true" setzen für einmalige Stammdaten-Migration (siehe Doku)
+      RUN_STAMMDATEN_UPDATE: ${RUN_STAMMDATEN_UPDATE:-false}
+    ports:
+      - "${APP_PORT:-5000}:5000"
+    volumes:
+      - uploads:/app/packages/backend/uploads
+
+volumes:
+  pgdata:
+  uploads:
