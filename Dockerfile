@@ -7,9 +7,16 @@
 # Backend serviert das Frontend auf Port 5000 (siehe packages/backend/src/index.ts).
 
 # ─── Stage 1: Builder ────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+# bookworm-slim (Debian 12) statt alpine: bringt OpenSSL 3 mit, vermeidet
+# "Could not parse schema engine response"-Fehler von Prisma auf musl-libc.
+FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
+
+# OpenSSL für Prisma-Engine (libssl3 + ca-certificates für npm/Git/HTTPS)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # Workspace-Manifeste zuerst → bessere Layer-Cache-Nutzung
 COPY package.json package-lock.json ./
@@ -33,15 +40,17 @@ COPY scripts scripts
 RUN npm run build
 
 # ─── Stage 2: Runtime ────────────────────────────────────────────────────────
-FROM node:20-alpine AS runtime
+FROM node:20-bookworm-slim AS runtime
 
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=5000
 
-# pg_isready für Entrypoint-Wait + dumb-init für sauberes Signal-Handling
-RUN apk add --no-cache postgresql-client dumb-init
+# openssl für Prisma + postgresql-client für pg_isready im Entrypoint + dumb-init
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssl postgresql-client dumb-init ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # Manifeste + komplette node_modules aus builder (enthält Prisma Engines)
 COPY package.json package-lock.json ./
