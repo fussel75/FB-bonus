@@ -25,6 +25,10 @@ import jahresabschlussRoutes from './routes/admin/jahresabschluss';
 
 const app = express();
 
+// ─── Trust Proxy (für Reverse-Proxy wie Traefik/Nginx vor dem Container) ────
+// Liest den ersten X-Forwarded-* Header — korrekt für genau einen Hop davor.
+app.set('trust proxy', 1);
+
 // ─── Security & Parsing ──────────────────────────────────────────────────────
 app.use(helmet());
 // Bug 11 Fix: FRONTEND_URL war unvalidiert — ohne Wert ergab sich `origin: undefined`
