@@ -1,16 +1,7 @@
+// Engine-Binaries für lokale Entwicklung + bookworm-slim x86_64/ARM + Alpine-Fallback
 generator client {
   provider      = "prisma-client-js"
-  // Engine-Binaries für alle realistischen Container-Plattformen.
-  // - native:                          lokale Entwicklung
-  // - debian-openssl-3.0.x:            bookworm-slim x86_64 (Standard-VPS)
-  // - linux-arm64-openssl-3.0.x:       bookworm-slim auf ARM-VPS (Hostinger ARM)
-  // - linux-musl-openssl-3.0.x:        Fallback falls jemand wieder Alpine baut
-  binaryTargets = [
-    "native",
-    "debian-openssl-3.0.x",
-    "linux-arm64-openssl-3.0.x",
-    "linux-musl-openssl-3.0.x"
-  ]
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-arm64-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
