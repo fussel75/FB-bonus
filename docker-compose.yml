@@ -1,4 +1,4 @@
-# docker-compose.yml — BonusTrack-Stack hinter Traefik
+# docker-compose.yml — BonusTrack-Stack hinter Traefik (host-network)
 #
 # Setup auf Hostinger Docker Manager:
 #   1) Projekt anlegen, Projektname: fb-bonus
@@ -7,72 +7,59 @@
 #   4) "Bereitstellen" klicken
 #
 # Voraussetzungen:
-#   - Traefik läuft bereits im VPS und hat einen Let's-Encrypt-Resolver konfiguriert
-#   - DNS A-Record für fb-bonus.fristd-bau.com zeigt auf die VPS-IP
-#   - Das externe Docker-Netzwerk (Default: "proxy") existiert
-#     → falls nicht: `docker network create proxy`
+#   - Traefik läuft (auch im host-network ok), Cert-Resolver "letsencrypt"
+#   - DNS A-Record fb-bonus.fristd-bau.com → VPS-IP
+#   - HTTP→HTTPS-Redirect ist üblicherweise global in Traefik konfiguriert
+#     (entrypoints.web.http.redirections.entrypoint.to=websecure); deshalb
+#     hier KEIN extra Redirect-Router.
 
 services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER:     ${POSTGRES_USER:-bonustrack}
+      POSTGRES_USER: bonustrack
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB:       ${POSTGRES_DB:-bonustrack}
+      POSTGRES_DB: bonustrack
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test:     ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bonustrack} -d ${POSTGRES_DB:-bonustrack}"]
+      test: ["CMD-SHELL", "pg_isready -U bonustrack -d bonustrack"]
       interval: 5s
-      timeout:  5s
-      retries:  10
+      timeout: 5s
+      retries: 10
     networks:
-      - internal
-    # Kein ports-Mapping — Postgres bleibt im internen Netz
+      - fb-bonus
 
   app:
     build:
-      context:    .
+      context: .
       dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL:    postgresql://${POSTGRES_USER:-bonustrack}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bonustrack}
-      JWT_SECRET:      ${JWT_SECRET}
-      JWT_EXPIRES_IN:  ${JWT_EXPIRES_IN:-8h}
+      DATABASE_URL: postgresql://bonustrack:${POSTGRES_PASSWORD}@postgres:5432/bonustrack
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: 8h
       PARTNER_API_KEY: ${PARTNER_API_KEY}
-      RESEND_API_KEY:  ${RESEND_API_KEY:-}
-      FRONTEND_URL:    https://${APP_DOMAIN:-fb-bonus.fristd-bau.com}
-      NODE_ENV:        production
-      PORT:            5000
-      # Auf "true" setzen für einmalige Stammdaten-Migration (siehe DEPLOY.md)
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      FRONTEND_URL: https://fb-bonus.fristd-bau.com
+      NODE_ENV: production
+      PORT: 5000
       RUN_STAMMDATEN_UPDATE: ${RUN_STAMMDATEN_UPDATE:-false}
     volumes:
       - uploads:/app/packages/backend/uploads
     networks:
-      - proxy
-      - internal
+      - fb-bonus
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=${TRAEFIK_NETWORK:-proxy}"
-
-      # HTTPS-Router (Port 443)
-      - "traefik.http.routers.fb-bonus.rule=Host(`${APP_DOMAIN:-fb-bonus.fristd-bau.com}`)"
-      - "traefik.http.routers.fb-bonus.entrypoints=${TRAEFIK_HTTPS_ENTRYPOINT:-websecure}"
+      - "traefik.docker.network=fb-bonus"
+      - "traefik.http.routers.fb-bonus.rule=Host(`fb-bonus.fristd-bau.com`)"
+      - "traefik.http.routers.fb-bonus.entrypoints=websecure"
       - "traefik.http.routers.fb-bonus.tls=true"
-      - "traefik.http.routers.fb-bonus.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}"
-
-      # HTTP → HTTPS Redirect (Port 80)
-      - "traefik.http.routers.fb-bonus-http.rule=Host(`${APP_DOMAIN:-fb-bonus.fristd-bau.com}`)"
-      - "traefik.http.routers.fb-bonus-http.entrypoints=${TRAEFIK_HTTP_ENTRYPOINT:-web}"
-      - "traefik.http.routers.fb-bonus-http.middlewares=fb-bonus-redirect-https"
-      - "traefik.http.middlewares.fb-bonus-redirect-https.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.fb-bonus-redirect-https.redirectscheme.permanent=true"
-
-      # Backend-Port für Traefik
+      - "traefik.http.routers.fb-bonus.tls.certresolver=letsencrypt"
       - "traefik.http.services.fb-bonus.loadbalancer.server.port=5000"
 
 volumes:
@@ -80,7 +67,6 @@ volumes:
   uploads:
 
 networks:
-  proxy:
-    external: true
-    name: ${TRAEFIK_NETWORK:-proxy}
-  internal:
+  # Fester Name (kein Compose-Prefix), damit traefik.docker.network passt
+  fb-bonus:
+    name: fb-bonus
