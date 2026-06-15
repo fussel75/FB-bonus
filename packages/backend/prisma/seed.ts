@@ -7,23 +7,23 @@ async function main() {
   console.log('🌱 Seeding Datenbank...');
 
   // ─── Standard-Rollen ────────────────────────────────────────────────────────
-  const rollen = [
-    { bezeichnung: 'Helfer',    faktor: 1.0 },
-    { bezeichnung: 'Geselle',   faktor: 1.1 },
-    { bezeichnung: 'Fachkraft', faktor: 1.3 },
-    { bezeichnung: 'Polier',    faktor: 1.6 },
-  ];
-
-  for (const rolle of rollen) {
-    await prisma.rolle.upsert({
-      where:  { bezeichnung: rolle.bezeichnung },
-      // upsert ohne update — bestehende Faktoren werden NICHT überschrieben.
-      // Neue Rollen werden mit create angelegt.
-      update: {},
-      create: rolle,
-    });
+  // Nur beim ALLERERSTEN Lauf anlegen (Tabelle komplett leer). Wenn der Admin
+  // später eine Rolle löscht, soll sie nicht beim nächsten Container-Restart
+  // wieder zurückkommen. Neue Rollen werden ohnehin per Partner-Sync ergänzt
+  // oder manuell im Admin-UI angelegt.
+  const rollenCount = await prisma.rolle.count();
+  if (rollenCount === 0) {
+    const rollen = [
+      { bezeichnung: 'Helfer',    faktor: 1.0 },
+      { bezeichnung: 'Geselle',   faktor: 1.1 },
+      { bezeichnung: 'Fachkraft', faktor: 1.3 },
+      { bezeichnung: 'Polier',    faktor: 1.6 },
+    ];
+    await prisma.rolle.createMany({ data: rollen });
+    console.log(`  ✓ ${rollen.length} Standard-Rollen angelegt (Erst-Setup)`);
+  } else {
+    console.log(`  ✓ Rollen-Tabelle hat bereits ${rollenCount} Einträge — Standard-Rollen NICHT neu angelegt`);
   }
-  console.log('  ✓ Rollen angelegt');
 
   // ─── Konfigurationsparameter ─────────────────────────────────────────────────
   const config: Array<{
