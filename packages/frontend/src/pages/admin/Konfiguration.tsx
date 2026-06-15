@@ -223,6 +223,114 @@ function KonfigFeld({
   );
 }
 
+// ─── Ganzjahres-Bedingung ─────────────────────────────────────────────────────
+
+function GanzjahresBedingung({
+  werte,
+  onSave,
+}: {
+  werte:  KonfigWerte;
+  onSave: (key: string, value: string) => Promise<void>;
+}) {
+  const initAktiv = String(werte.ganzjahres_bedingung_aktiv ?? 'true') !== 'false';
+  const initMonate = Number(werte.ganzjahres_bedingung_mindest_monate_im_jahr ?? 0);
+
+  const [aktiv,  setAktiv]  = useState(initAktiv);
+  const [monate, setMonate] = useState(String(initMonate));
+  const [saving, setSaving] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const toggleAktiv = async (v: boolean) => {
+    setAktiv(v);
+    setSaving('aktiv');
+    try {
+      await onSave('ganzjahres_bedingung_aktiv', v ? 'true' : 'false');
+      setSuccess('aktiv');
+      setTimeout(() => setSuccess(null), 2000);
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const saveMonate = async () => {
+    const num = Number(monate);
+    if (isNaN(num) || num < 0 || num > 12) return;
+    setSaving('monate');
+    try {
+      await onSave('ganzjahres_bedingung_mindest_monate_im_jahr', String(num));
+      setSuccess('monate');
+      setTimeout(() => setSuccess(null), 2000);
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Ganzjahres-Bedingung</CardTitle>
+      </CardHeader>
+
+      <div className="space-y-5">
+        <div className="rounded-xl border border-grenz-200 bg-grenz-50 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex-1 pr-4">
+              <p className="text-sm font-semibold text-grenz-800">Strenge Ganzjahres-Bedingung aktiv</p>
+              <p className="text-xs text-grenz-700 mt-1">
+                Wenn aktiv: Mitarbeiter müssen <strong>vor dem 01.01.</strong> des Bonusjahres eingetreten
+                sein, sonst keine Auszahlung. Überschreibt die Mindest-Betriebszugehörigkeit für
+                Neueintritte im laufenden Bonusjahr.
+              </p>
+              <p className="text-xs text-grenz-700 mt-1">
+                Wenn aus: Nur die <strong>Mindest-Betriebszugehörigkeit (Monate)</strong> oben zählt.
+              </p>
+            </div>
+            <button
+              onClick={() => !saving && toggleAktiv(!aktiv)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                aktiv ? 'bg-grenz-600' : 'bg-gray-300'
+              }`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${aktiv ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+          {success === 'aktiv' && (
+            <p className="text-xs text-bonus-700 mt-2">✓ gespeichert</p>
+          )}
+        </div>
+
+        {aktiv && (
+          <div>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Anteilige Qualifikation bei Austritt (Mindest-Monate im Bonusjahr)
+            </label>
+            <p className="text-xs text-gray-400 mb-1.5">
+              Mitarbeiter, die im Bonusjahr austreten, bleiben qualifiziert wenn sie mindestens diese
+              Anzahl Monate im Jahr gearbeitet haben. Beispiel: <code>6</code> → Franz mit Austritt
+              18.07. (7 Monate dabei) wird qualifiziert. <code>0</code> = Toleranz deaktiviert.
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="number" min={0} max={12} value={monate}
+                onChange={(e) => setMonate(e.target.value)}
+                className="flex-1 px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-info-500 bg-white dark:bg-gray-800"
+              />
+              <span className="px-2 py-2 text-xs text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg">Monate</span>
+              <Button size="sm"
+                variant={success === 'monate' ? 'success' : 'primary'}
+                loading={saving === 'monate'}
+                onClick={saveMonate}
+              >
+                {success === 'monate' ? '✓' : 'Speichern'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 // ─── Krankheits-Staffel ───────────────────────────────────────────────────────
 
 function KrankheitsStaffel({
@@ -1384,6 +1492,9 @@ export default function AdminKonfiguration() {
 
       {/* Stufenmodell Option B */}
       <StufenSatzKonfigurator werte={werte} onSave={handleSave} />
+
+      {/* Ganzjahres-Bedingung (Eintritt vor 01.01.) */}
+      <GanzjahresBedingung werte={werte} onSave={handleSave} />
 
       {/* Krankheits-Staffel + EFZG-Schutz */}
       <KrankheitsStaffel werte={werte} onSave={handleSave} />
