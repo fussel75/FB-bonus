@@ -47,24 +47,27 @@ services:
       - backups:/backups
     networks:
       - fb-bonus
+    # Einfache Endlosschleife statt cron — alle 24h pg_dump + Retention
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        apk add --no-cache dcron > /dev/null
-        cat > /etc/periodic/daily/pgbackup <<'EOF'
-        #!/bin/sh
-        set -e
-        DATE=$$(date +%Y-%m-%d_%H%M)
-        FILE=/backups/bonustrack-$$DATE.sql.gz
-        echo "[backup] starting $$DATE"
-        pg_dump -h $$PGHOST -U $$PGUSER $$PGDATABASE | gzip > $$FILE
-        echo "[backup] wrote $$FILE ($$(du -h $$FILE | cut -f1))"
-        find /backups -name 'bonustrack-*.sql.gz' -type f -mtime +$$BACKUP_RETENTION_DAYS -delete
-        echo "[backup] retention done"
-        EOF
-        chmod +x /etc/periodic/daily/pgbackup
-        /etc/periodic/daily/pgbackup
-        exec crond -f -l 8
+        echo "[backup] container gestartet, starte erste Sicherung in 30s..."
+        sleep 30
+        while true; do
+          DATE=$$(date +%Y-%m-%d_%H%M)
+          FILE=/backups/bonustrack-$$DATE.sql.gz
+          echo "[backup] $$DATE — dump läuft"
+          if pg_dump -h "$$PGHOST" -U "$$PGUSER" "$$PGDATABASE" | gzip > "$$FILE"; then
+            echo "[backup] $$DATE — fertig ($$(du -h $$FILE | cut -f1))"
+          else
+            echo "[backup] $$DATE — FEHLER beim Dump"
+            rm -f "$$FILE"
+          fi
+          echo "[backup] retention: Dateien älter als $$BACKUP_RETENTION_DAYS Tage löschen"
+          find /backups -name 'bonustrack-*.sql.gz' -type f -mtime +$$BACKUP_RETENTION_DAYS -delete
+          echo "[backup] schlafe 24h bis zum nächsten Lauf"
+          sleep 86400
+        done
 
   app:
     build:
