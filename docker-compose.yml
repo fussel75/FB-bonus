@@ -95,7 +95,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=fb-bonus"
-      - "traefik.http.routers.fb-bonus.rule=Host(`fb-bonus.fristd-bau.com`)"
+      - "traefik.http.routers.fb-bonus.rule=Host(`fb-bonus.fristd-bau.com`) || Host(`bonus.fristd-bau.com`)"
       - "traefik.http.routers.fb-bonus.entrypoints=websecure"
       - "traefik.http.routers.fb-bonus.tls=true"
       - "traefik.http.routers.fb-bonus.tls.certresolver=letsencrypt"

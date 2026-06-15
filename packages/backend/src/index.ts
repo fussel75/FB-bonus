@@ -60,6 +60,13 @@ app.set('trust proxy', 1);
 // CSP angepasst, damit Google Fonts laden können (sonst Connect/Font-Block).
 // Wenn Du später die Fonts lokal hostest (z.B. via @fontsource/inter), kannst
 // du fonts.googleapis.com + fonts.gstatic.com aus den directives nehmen.
+// Erlaubte Origins aus FRONTEND_URL (kann eine oder mehrere URLs sein,
+// kommasepariert). Für CORS UND als allowed source in CSP frame-ancestors.
+const allowedOrigins = (process.env.FRONTEND_URL ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -78,7 +85,7 @@ app.use(helmet({
 // Bug 11 Fix: FRONTEND_URL war unvalidiert — ohne Wert ergab sich `origin: undefined`
 // was je nach cors-Version alle Origins erlaubt. Jetzt: expliziter Fallback + Warnung.
 const corsOrigin = env.NODE_ENV === 'production'
-  ? (process.env.FRONTEND_URL ?? (() => {
+  ? (allowedOrigins.length > 0 ? allowedOrigins : (() => {
       console.warn('[CORS] FRONTEND_URL nicht gesetzt — alle Origins erlaubt. Bitte FRONTEND_URL setzen.');
       return true; // `true` = Origin aus Request spiegeln (erlaubt alle, aber explizit)
     })())
