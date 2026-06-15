@@ -35,6 +35,10 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
+  // Non-HTTP-Schemes (chrome-extension://, data:, blob:) NICHT abfangen —
+  // Cache.put() unterstützt sie nicht und wirft sonst Errors.
+  if (!url.protocol.startsWith('http')) return;
+
   // API-Calls: NIE cachen (Geschäftsdaten müssen aktuell sein)
   if (url.pathname.startsWith('/api/')) return;
 

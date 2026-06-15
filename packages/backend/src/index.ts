@@ -57,7 +57,24 @@ app.use(pinoHttp({
 app.set('trust proxy', 1);
 
 // ─── Security & Parsing ──────────────────────────────────────────────────────
-app.use(helmet());
+// CSP angepasst, damit Google Fonts laden können (sonst Connect/Font-Block).
+// Wenn Du später die Fonts lokal hostest (z.B. via @fontsource/inter), kannst
+// du fonts.googleapis.com + fonts.gstatic.com aus den directives nehmen.
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc:  ["'self'"],
+      scriptSrc:   ["'self'"],
+      styleSrc:    ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc:     ["'self'", 'https://fonts.gstatic.com', 'data:'],
+      connectSrc:  ["'self'", 'https://fonts.googleapis.com', 'https://fonts.gstatic.com'],
+      imgSrc:      ["'self'", 'data:', 'blob:'],
+      objectSrc:   ["'none'"],
+      baseUri:     ["'self'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+}));
 // Bug 11 Fix: FRONTEND_URL war unvalidiert — ohne Wert ergab sich `origin: undefined`
 // was je nach cors-Version alle Origins erlaubt. Jetzt: expliziter Fallback + Warnung.
 const corsOrigin = env.NODE_ENV === 'production'

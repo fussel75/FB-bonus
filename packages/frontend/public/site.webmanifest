@@ -9,15 +9,27 @@
   "icons": [
     {
       "src": "/android-chrome-192x192.png",
-      "sizes": "192x192",
+      "sizes": "192x128",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/android-chrome-512x512.png",
-      "sizes": "512x512",
+      "sizes": "512x341",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x120",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon-48x48.png",
+      "sizes": "48x48",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }
