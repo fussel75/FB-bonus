@@ -86,7 +86,14 @@ async function pruefeHarteKriterien(
     };
   }
 
-  const stichtag = new Date(`${kalenderjahr}-12-31`);
+  // Stichtag = min(heute, 31.12. des Bonusjahres).
+  // Im laufenden Jahr ehrlich bis "heute" rechnen — sonst würden MA als
+  // qualifiziert angezeigt, die das erst Ende Dezember erreichen werden.
+  // Für Vorjahre bleibt der 31.12. der Stichtag.
+  const jahresende = new Date(`${kalenderjahr}-12-31`);
+  const heute = new Date();
+  const stichtag = heute < jahresende ? heute : jahresende;
+
   const monate =
     (stichtag.getFullYear() - eintrittsdatum.getFullYear()) * 12 +
     (stichtag.getMonth() - eintrittsdatum.getMonth());
