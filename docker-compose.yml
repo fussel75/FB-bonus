@@ -82,7 +82,7 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       ADMIN_INITIAL_EMAIL: ${ADMIN_INITIAL_EMAIL:-admin@bonustrack.app}
       ADMIN_INITIAL_PASSWORD: ${ADMIN_INITIAL_PASSWORD}
-      FRONTEND_URL: https://fb-bonus.fristd-bau.com
+      FRONTEND_URL: ${FRONTEND_URL:-https://bonus.fristd-bau.com,https://fb-bonus.fristd-bau.com}
       SENTRY_DSN: ${SENTRY_DSN:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       NODE_ENV: production
@@ -95,11 +95,27 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=fb-bonus"
-      - "traefik.http.routers.fb-bonus.rule=Host(`fb-bonus.fristd-bau.com`) || Host(`bonus.fristd-bau.com`)"
-      - "traefik.http.routers.fb-bonus.entrypoints=websecure"
-      - "traefik.http.routers.fb-bonus.tls=true"
-      - "traefik.http.routers.fb-bonus.tls.certresolver=letsencrypt"
-      - "traefik.http.services.fb-bonus.loadbalancer.server.port=5000"
+
+      # ── Haupt-Router: bonus.fristd-bau.com ──────────────────────────────
+      - "traefik.http.routers.bonus.rule=Host(`bonus.fristd-bau.com`)"
+      - "traefik.http.routers.bonus.entrypoints=websecure"
+      - "traefik.http.routers.bonus.tls=true"
+      - "traefik.http.routers.bonus.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.bonus.service=bonus-app"
+
+      # ── Alt-Domain fb-bonus.fristd-bau.com → 301 zu bonus.fristd-bau.com ─
+      - "traefik.http.routers.bonus-legacy.rule=Host(`fb-bonus.fristd-bau.com`)"
+      - "traefik.http.routers.bonus-legacy.entrypoints=websecure"
+      - "traefik.http.routers.bonus-legacy.tls=true"
+      - "traefik.http.routers.bonus-legacy.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.bonus-legacy.middlewares=bonus-legacy-redirect"
+      - "traefik.http.routers.bonus-legacy.service=bonus-app"
+      - "traefik.http.middlewares.bonus-legacy-redirect.redirectregex.regex=^https://fb-bonus\\.fristd-bau\\.com/(.*)"
+      - "traefik.http.middlewares.bonus-legacy-redirect.redirectregex.replacement=https://bonus.fristd-bau.com/$${1}"
+      - "traefik.http.middlewares.bonus-legacy-redirect.redirectregex.permanent=true"
+
+      # ── Service ─────────────────────────────────────────────────────────
+      - "traefik.http.services.bonus-app.loadbalancer.server.port=5000"
 
 volumes:
   pgdata:
